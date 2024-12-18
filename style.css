@@ -244,13 +244,16 @@ nav i {
   align-items: center;
   justify-content: center;
 }
-span.inc,
-span.dec {
+.fa-chevron-up,
+.fa-chevron-down {
   height: 12px;
   line-height: 11px;
   cursor: pointer;
 }
-span.inc:hover,
-span.dec:hover {
+.fa-chevron-up:hover,
+.fa-chevron-down:hover {
   color: var(--primaryColor);
+}
+.fa-trash-can {
+  cursor: pointer;
 }

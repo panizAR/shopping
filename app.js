@@ -6,6 +6,8 @@ const closeBtn = document.querySelectorAll(".close-modal");
 const productDom = document.querySelector(".product");
 const cartNum = document.querySelector(".cart-num");
 const cartTotal = document.querySelector(".total-price");
+const modalContent = document.querySelector(".modal__content");
+const clearCartBtn = document.querySelector(".clear-cart");
 
 // open and close modal
 basket.addEventListener("click", openModal);
@@ -28,7 +30,7 @@ class Products {
   }
 }
 // 2. display product
-
+let buttonDOM = [];
 class UI {
   displayProducts(products) {
     let result = "";
@@ -54,12 +56,13 @@ class UI {
     });
   }
   getAddToCartBtn() {
-    const addToCartBtn = document.querySelectorAll(".add-to-cart");
-    const buttons = [...addToCartBtn];
-    buttons.forEach((btn) => {
+    const addToCartBtn = [...document.querySelectorAll(".add-to-cart")];
+    buttonDOM = addToCartBtn;
+
+    addToCartBtn.forEach((btn) => {
       const id = btn.dataset.id;
 
-      const isInCart = cart.find((p) => p.id === id);
+      const isInCart = cart.find((p) => p.id === parseInt(id));
       if (isInCart) {
         btn.innerHTML = `In Cart`;
         btn.disabled = true;
@@ -70,16 +73,19 @@ class UI {
         event.target.innerHTML = "In Cart";
         event.target.disabled = true;
         //get product from products
-        const addedProduct = Storage.getProduct(id);
+        const addedProduct = { ...Storage.getProduct(id), quantity: 1 };
 
         //add to cart
-        cart = [...cart, { ...addedProduct, quantity: 1 }];
+        cart = [...cart, addedProduct];
 
         //save cart to localstorage
         Storage.saveCart(cart);
 
         // update cart value
         this.setCartValue(cart);
+
+        // add product to cart modal
+        this.addCartItem(addedProduct);
       });
     });
   }
@@ -91,6 +97,127 @@ class UI {
     }, 0);
     cartTotal.innerHTML = totalPrice.toFixed(2);
     cartNum.innerHTML = tempCartItem;
+  }
+  addCartItem(cartItem) {
+    const div = document.createElement("div");
+    div.classList.add("modal__item");
+    div.innerHTML = `
+      <div class="modal__item-img">
+        <img src=${cartItem.imageUrl} />
+      </div>
+      <div class="modal__item-header">
+        <div class="modal__item-title">
+          ${cartItem.title}
+        </div>
+        <div class="modal__item-price">  ${cartItem.price}</div>
+      </div>
+      <div class="modal__item-counter">
+          <i class="fa-solid fa-chevron-up" data-id=${cartItem.id}></i>
+          <span class="counter">${cartItem.quantity}</span>
+          <i class="fa-solid fa-chevron-down" data-id=${cartItem.id}></i>
+      </div>
+      <i class="fa-solid fa-trash-can" data-id=${cartItem.id}></i>`;
+    modalContent.appendChild(div);
+  }
+  setupApp() {
+    //get cart from storage
+    cart = Storage.getCart() || [];
+    //add cartitem
+    cart.forEach((cartitem) => this.addCartItem(cartitem));
+    //set valus
+    this.setCartValue(cart);
+  }
+  cartLogic() {
+    //clear cart
+    clearCartBtn.addEventListener("click", () => {
+      this.clearCart();
+    });
+
+    // cart functionality
+    modalContent.addEventListener("click", (event) => {
+      if (event.target.classList.contains("fa-chevron-up")) {
+        const addQuantity = event.target;
+
+        // get item from cart
+        const addedItem = cart.find(
+          (cItem) => cItem.id == addQuantity.dataset.id
+        );
+        addedItem.quantity++;
+
+        // save cart
+        this.setCartValue(cart);
+
+        // update cart valu
+        Storage.saveCart(cart);
+
+        //update cart num qu in ui
+        addQuantity.nextElementSibling.innerText = addedItem.quantity;
+      } else if (event.target.classList.contains("fa-trash-can")) {
+        const removeItem = event.target;
+        // remove from cart item
+        const _removedItem = cart.find((c) => c.id == removeItem.dataset.id);
+        this.removeItem(_removedItem.id);
+
+        modalContent.removeChild(removeItem.parentElement);
+        // save cart
+        this.setCartValue(cart);
+
+        // update cart valu
+        Storage.saveCart(cart);
+      } else if (event.target.classList.contains("fa-chevron-down")) {
+        const subQuantity = event.target;
+
+        // get item from cart
+        const substractedItem = cart.find(
+          (c) => c.id == subQuantity.dataset.id
+        );
+        if (substractedItem.quantity === 1) {
+          this.removeItem(substractedItem.id);
+          modalContent.removeChild(subQuantity.parentElement.parentElement);
+          return;
+        }
+        substractedItem.quantity--;
+
+        // save cart
+        this.setCartValue(cart);
+
+        // update cart valu
+        Storage.saveCart(cart);
+
+        //update cart num qu in ui
+        subQuantity.previousElementSibling.innerText = substractedItem.quantity;
+      }
+    });
+  }
+  clearCart() {
+    //romove
+    cart.forEach((cItem) => this.removeItem(cItem.id));
+    cart = [];
+    // remove cart content childeren
+    while (modalContent.children.length > 0) {
+      modalContent.removeChild(modalContent.children[0]);
+    }
+    this.setCartValue(cart);
+    Storage.saveCart(cart);
+  }
+  removeItem(id) {
+    //update cart
+    cart = cart.filter((cItem) => cItem.id != id);
+
+    //  update price ang cart item
+    this.setCartValue(cart);
+    // update storage
+    Storage.saveCart(cart);
+
+    // get aad to cart btn => update text
+    this.getSinglebutton(id);
+  }
+  getSinglebutton(id) {
+    const button = buttonDOM.find(
+      (btn) => parseInt(btn.dataset.id) === parseInt(id)
+    );
+    button.innerText = "Add to cart";
+    button.disabled = false;
   }
 }
 
@@ -106,13 +233,18 @@ class Storage {
   static saveCart(cart) {
     localStorage.setItem("cart", JSON.stringify(cart));
   }
+  static getCart() {
+    return JSON.parse(localStorage.getItem("cart"));
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   const products = new Products();
   const productsData = products.getProducts();
   const ui = new UI();
+  ui.setupApp();
   ui.displayProducts(productsData);
   ui.getAddToCartBtn();
+  ui.cartLogic();
   Storage.saveProducts(productsData);
 });
